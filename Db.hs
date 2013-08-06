@@ -1,9 +1,12 @@
 module Db(
+	-- we don't export the Db constructor,
+	-- _TEST_DB as starting point
+	-- can only be altered by db_add_reservation and db_remove_reservation
 	Db,
 
-	TrainId, TrainCarId, RouteId, ReservationId,
+	TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..),
 
-	Train, TrainCar, Route,
+	Train(..), TrainCar(..), Route(..),
 
 	-- we don't export the Reservation constructor,
 	-- can only be safely created by db_add_reservation
