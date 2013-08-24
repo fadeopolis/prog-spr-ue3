@@ -88,7 +88,7 @@ _TEST_DB = Db {
 	reservation_id_gen = 0
 }
 
--- computation that may alter tha database or print some output
+-- computation that may alter the database or print some output
 newtype DbFn a = DbFn { unDbFn :: (StateT Db (Writer String) a) }
 
 -- run db function
