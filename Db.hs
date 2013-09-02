@@ -81,8 +81,8 @@ data Db = Db {
 
 -- hard coded db for testing
 _TEST_DB = Db {
-	trains = [],
-	routes = [],
+	trains = [Train (TrainId "U1") (RouteId "11"), Train (TrainId "U2") (RouteId "21"), Train (TrainId "U4") (RouteId "41")],
+	routes = [Route (RouteId "11") []],
 
 	reservations       = [],
 	reservation_id_gen = 0

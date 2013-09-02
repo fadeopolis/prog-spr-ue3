@@ -8,9 +8,10 @@ data TODO = TODO
 todo      = error "TODO"
 todo' msg = error ("TODO: " ++ msg)
 
--- a action parsed from user input,
--- takes a Db, produces a new Db and some output to print 
--- and a flag telling us if we are done
+{- a action parsed from user input,
+ - takes a Db, produces a new Db and some output to print 
+ - and a flag telling us if we are done
+-}
 type Command = Db -> (Db, String, Bool)
 
 main :: IO ()
@@ -23,12 +24,12 @@ main = do
 	db    <- readDb filepath
 	putStrLn ">> READ DATABASE"
 
-	input <- getContents -- get user input
+	input <- getContents -- get user input from stdin
 
-	(db', _) <- mainLoop db input -- process user input
+	(db', _) <- mainLoop db input -- process user input in mainLoop
 
 	putStrLn ">> WRITING DATABASE"
-	writeDb filepath db'
+	writeDb filepath db' -- process changes in DB
 	putStrLn ">> WROTE DATABASE"
 
 	putStrLn ">> DONE"
