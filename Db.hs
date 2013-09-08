@@ -4,7 +4,10 @@ module Db(
 	-- can only be altered by db_add_reservation and db_remove_reservation
 	Db,
 
-	TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..),
+	--TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..),
+
+	--TODO should we make these puplic?
+	--FreeSeatQuota(..), TrainCarNumSeats(..), City(..),
 
 	Train(..), TrainCar(..), Route(..),
 
@@ -24,40 +27,54 @@ import Control.Monad.Writer
 import Control.Monad.State
 import Data.List
 
+-- TODO 
 data TODO = TODO
 
 todo      = error "TODO"
 todo' msg = error ("TODO: " ++ msg)
+-- TODO
 
 -- database id types
-newtype TrainId       = TrainId       String  deriving (Show, Read, Eq)
-newtype TrainCarId    = TrainCarId    Int     deriving (Show, Read, Eq)
-newtype RouteId       = RouteId       String  deriving (Show, Read, Eq)
-newtype ReservationId = ReservationId Int     deriving (Show, Read, Eq)
+newtype TrainId          = TrainId          String  deriving (Show, Read, Eq)
+newtype FreeSeatQuota    = FreeSeatQuota    Int     deriving (Show, Read, Eq)
+
+newtype TrainCarId       = TrainCarId       String  deriving (Show, Read, Eq)
+newtype TrainCarNumSeats = TrainCarNumSeats Int     deriving (Show, Read, Eq)
+
+newtype RouteId          = RouteId          String  deriving (Show, Read, Eq)
+newtype City             = City             String  deriving (Show, Read, Eq)
+
+newtype ReservationId    = ReservationId    Int     deriving (Show, Read, Eq)
+
 
 -- a train (choo-choo)
 data Train = Train {
-	train_id    :: TrainId,
-	train_route :: RouteId  -- route this train drives on
+	train_id             :: TrainId,      -- unique train identification
+	train_route          :: Route,      -- route this train drives on
+	train_cars           :: [TrainCar], -- list of all traincars of this train
+	train_res_free_seats :: FreeSeatQuota -- quota of free seats which are not reservable
 }
 	deriving (Show, Read, Eq)
 
 -- one car in a train
-data TrainCar = TrainCar TrainCarId
-	deriving (Show, Read, Eq)
-
-data City = City String
+data TrainCar = TrainCar {
+	train_car_id        :: TrainCarId,      -- unique traincar identification
+	train_car_num_seats :: TrainCarNumSeats -- number of seats available in a traincar
+}
 	deriving (Show, Read, Eq)
 
 -- a route from town A to town B, with stops etc.
-data Route = Route RouteId [City]
+data Route = Route {
+        route_id  :: RouteId,
+        cities    :: [City]
+}
 	deriving (Show, Read, Eq)
 
 data Reservation = Reservation {
 	reservation_id    :: ReservationId, -- must be unique
 
-	train             :: TrainId,       -- train passengers ride in
-	traincar          :: TrainCarId,    -- train car passengers ride in
+	train             :: TrainId,         -- train passengers ride in
+	traincar          :: TrainCarId,      -- train car passengers ride in
 	first_seat        :: Int,           -- seat in train car where reservation starts
 	num_seats         :: Int,           -- number of seats reserved
 
@@ -66,14 +83,16 @@ data Reservation = Reservation {
 }
 	deriving (Show, Read, Eq)
 
--- holds all trains, reservations, routes, etc.
+{- Holds all trains, reservations, routes, etc. 
 -- the state of the app so to say.
+-- This is what we write to the file
+--}
 data Db = Db {
-	-- fixed part (should we store this in DB or hard code it?)
-	trains             :: [Train],
-	routes             :: [Route],
+	-- fixed part (red from file at startup)
+	trains             :: [Train],      -- and traincars
+	routes             :: [Route],      -- and cities
 
-	-- `tables in db'
+	-- changing through time
 	reservations       :: [Reservation],
 	reservation_id_gen :: Int            -- used to generate unique reservation ids
 }
@@ -81,8 +100,8 @@ data Db = Db {
 
 -- hard coded db for testing
 _TEST_DB = Db {
-	trains = [Train (TrainId "U1") (RouteId "11"), Train (TrainId "U2") (RouteId "21"), Train (TrainId "U4") (RouteId "41")],
-	routes = [Route (RouteId "11") []],
+	trains = [], --[Train (TrainId "U1") (RouteId "11"), Train (TrainId "U2") (RouteId "21"), Train (TrainId "U4") (RouteId "41")],
+	routes = [], --[Route (RouteId "11") []],
 
 	reservations       = [],
 	reservation_id_gen = 0
