@@ -13,7 +13,9 @@ module Db(
 
 	-- we don't export the Reservation constructor,
 	-- can only be safely created by db_add_reservation
-	reservation_id, train, traincar, first_seat, num_seats, reservation_start, reservation_end,
+	reservation_id, train, traincar, first_seat, num_seats, reservation_route_id, reservation_route,
+	
+	--reservation_start, reservation_end,
 
 	runDbFn,
 	db_add_reservation, db_remove_reservation,
@@ -26,6 +28,7 @@ import Control.Monad
 import Control.Monad.Writer
 import Control.Monad.State
 import Data.List
+import Debug.Trace
 
 -- TODO 
 data TODO = TODO
@@ -71,15 +74,17 @@ data Route = Route {
 	deriving (Show, Read, Eq)
 
 data Reservation = Reservation {
-	reservation_id    :: ReservationId, -- must be unique
+	reservation_id       :: ReservationId, -- must be unique
 
-	train             :: TrainId,         -- train passengers ride in
-	traincar          :: TrainCarId,      -- train car passengers ride in
-	first_seat        :: Int,           -- seat in train car where reservation starts
-	num_seats         :: Int,           -- number of seats reserved
-
-	reservation_start :: City,          -- must be in route
-	reservation_end   :: City           -- must be in route
+	train                :: TrainId,         -- train passengers ride in
+	traincar             :: TrainCarId,      -- train car passengers ride in
+	first_seat           :: Int,           -- seat in train car where reservation starts
+	num_seats            :: Int,           -- number of seats reserved
+	
+	reservation_route_id :: RouteId,       -- the route this reservation is on
+	reservation_route    :: [City]         -- start and end city as head and tail
+	--reservation_start :: City,          -- must be in route
+	--reservation_end   :: City           -- must be in route
 }
 	deriving (Show, Read, Eq)
 
@@ -116,14 +121,17 @@ runDbFn (DbFn state) db = (a, output, db')
 	where
 		((a, db'), output) = runWriter $ runStateT state db
 
+db_list_reservations :: DbFn [Reservation]
+db_list_reservations = db_get reservations
+
 -- add reservation to db
 -- returns (Just Reservation) if reservation was added
 -- returns Nothing if reservation is invalid
-db_add_reservation :: TrainId -> TrainCarId -> Int -> Int -> City -> City -> DbFn (Maybe Reservation)
-db_add_reservation train traincar first_seat num_seats start stop = do
+db_add_reservation :: TrainId -> TrainCarId -> Int -> Int -> RouteId -> [City] -> DbFn (Maybe Reservation)
+db_add_reservation train traincar first_seat num_seats route_id cities = do
 	id <- new_reservation_id
 
-	db_add_reservation' (Reservation id train traincar first_seat num_seats start stop)
+	db_add_reservation' (Reservation id train traincar first_seat num_seats route_id cities)
 
 -- remove all reservations with given id
 db_remove_reservation :: ReservationId -> DbFn ()
@@ -147,9 +155,34 @@ db_println s = db_print (s ++ "\n")
 db_error :: String -> DbFn ()
 db_error err = db_println ("Error: " ++ err)
 
+-- reservation collides when same cities and same seats were already taken 
 -- computes all Reservations that collide with a given reservation
 colliding_reservations :: Reservation -> [Reservation] -> [Reservation]
-colliding_reservations r rs = todo
+colliding_reservations r rs = filter (colliding_reservation r) rs
+
+colliding_reservation :: Reservation -> Reservation -> Bool
+colliding_reservation r a = (check_city r (reservation_route a)) && (check_seats r a)
+
+-- check if Reservation contains same Cities
+check_city :: Reservation -> [City] -> Bool
+check_city r r1 = any (==) [(a,b) | a <- reservation_route r, b <- r1]
+
+--elem (head (reservation_route r)) r1
+
+--check_city r null = False
+--check_city r r2 = error "checking city"
+
+--printCity :: Reservation -> String
+--printCity r = print r
+
+-- if reservation_first_seat > (first_seat + num_seats) -> true, reservation possible
+-- else false 
+-- Reservierung1: first_seat 4, num_seats 5 -> 4 - 9 reserved.
+-- Reservierung2: first_seat 1, num_seats 5 -> 1 - 5 reserved.
+-- check if Reservation contains same seats
+check_seats :: Reservation -> Reservation -> Bool
+check_seats r r1 =
+	(((first_seat r) + (num_seats r) - 1) < (first_seat r1) || (first_seat r) > ((first_seat r1) + (num_seats r1) - 1))
 
 -- INTERNALS ------------------------------------------------------------
 
