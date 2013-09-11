@@ -4,12 +4,13 @@ module Db(
 	-- can only be altered by db_add_reservation and db_remove_reservation
 	Db,
 
-	--TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..),
+	City(..),
+
+	-- need to be public for parser
+	TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..),
 
 	--TODO should we make these puplic?
 	--FreeSeatQuota(..), TrainCarNumSeats(..), City(..),
-
-	Train(..), TrainCar(..), Route(..),
 
 	-- we don't export the Reservation constructor,
 	-- can only be safely created by db_add_reservation
@@ -21,7 +22,9 @@ module Db(
 	db_add_reservation, db_remove_reservation,
 	db_print, db_println, db_error,
 
-	_TEST_DB
+	_TEST_DB,
+
+	DbFn,
 ) where
 
 import Control.Monad
@@ -115,6 +118,9 @@ _TEST_DB = Db {
 -- computation that may alter the database or print some output
 newtype DbFn a = DbFn { unDbFn :: (StateT Db (Writer String) a) }
 
+db_trace :: Show a => a -> DbFn ()
+db_trace a = trace ("\n>> DEBUG: " ++ show a ++ "\n") (return ())
+
 -- run db function
 runDbFn :: DbFn a -> Db -> (a, String, Db)
 runDbFn (DbFn state) db = (a, output, db')
@@ -165,7 +171,7 @@ colliding_reservation r a = (check_city r (reservation_route a)) && (check_seats
 
 -- check if Reservation contains same Cities
 check_city :: Reservation -> [City] -> Bool
-check_city r r1 = any (==) [(a,b) | a <- reservation_route r, b <- r1]
+check_city r r1 = any (uncurry (==)) [(a,b) | a <- reservation_route r, b <- r1]
 
 --elem (head (reservation_route r)) r1
 
@@ -184,6 +190,7 @@ check_seats :: Reservation -> Reservation -> Bool
 check_seats r r1 =
 	(((first_seat r) + (num_seats r) - 1) < (first_seat r1) || (first_seat r) > ((first_seat r1) + (num_seats r1) - 1))
 
+
 -- INTERNALS ------------------------------------------------------------
 
 instance Monad DbFn where
@@ -200,6 +207,8 @@ db_add_reservation' :: Reservation -> DbFn (Maybe Reservation)
 db_add_reservation' r = do
 	db               <- db_get id
 	all_reservations <- db_get reservations
+
+	db_trace r
 
 	let collisions = colliding_reservations r all_reservations
 
