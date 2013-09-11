@@ -4,13 +4,13 @@ module Db(
 	-- can only be altered by db_add_reservation and db_remove_reservation
 	Db,
 
-	City(..),
-
 	-- need to be public for parser
 	TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..),
 
+	Train(..), TrainCar(..), Route(..), Reservation,
+
 	--TODO should we make these puplic?
-	--FreeSeatQuota(..), TrainCarNumSeats(..), City(..),
+	FreeSeatQuota(..), TrainCarNumSeats(..), City(..),
 
 	-- we don't export the Reservation constructor,
 	-- can only be safely created by db_add_reservation
@@ -23,6 +23,10 @@ module Db(
 	db_print, db_println, db_error,
 
 	_TEST_DB,
+
+	db_empty, 
+	db_add_trains, 
+	db_add_routes,
 
 	DbFn,
 ) where
@@ -122,10 +126,11 @@ db_trace :: Show a => a -> DbFn ()
 db_trace a = trace ("\n>> DEBUG: " ++ show a ++ "\n") (return ())
 
 -- run db function
-runDbFn :: DbFn a -> Db -> (a, String, Db)
-runDbFn (DbFn state) db = (a, output, db')
+runDbFn :: Db -> DbFn a -> (a, String, Db)
+runDbFn db (DbFn state) = (a, output, db')
 	where
 		((a, db'), output) = runWriter $ runStateT state db
+
 
 db_list_reservations :: DbFn [Reservation]
 db_list_reservations = db_get reservations
@@ -190,6 +195,29 @@ check_seats :: Reservation -> Reservation -> Bool
 check_seats r r1 =
 	(((first_seat r) + (num_seats r) - 1) < (first_seat r1) || (first_seat r) > ((first_seat r1) + (num_seats r1) - 1))
 
+-- FOR CREATING DB ------------------------------------------------------
+
+-- | An empty database
+db_empty :: Db
+db_empty = Db {
+	trains = [],
+	routes = [],
+
+	reservations       = [],
+	reservation_id_gen = 0
+}
+
+db_add_trains :: [Train] -> DbFn Db
+db_add_trains ts = do
+	db <- db_get id
+	db_put (db { trains = ts ++ trains db })
+	db_get id
+
+db_add_routes :: [Route] -> DbFn Db
+db_add_routes rs =  do
+	db <- db_get id
+	db_put (db { routes = rs ++ routes db })
+	db_get id
 
 -- INTERNALS ------------------------------------------------------------
 

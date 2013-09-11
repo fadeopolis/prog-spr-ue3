@@ -1,7 +1,15 @@
 {-# LANGUAGE RecordWildCards #-}
 
 import Db
+import Parser
+import Trains
+
 import Data.List
+import System.IO.Strict(readFile)
+import System.Directory
+import Control.Monad
+
+import Prelude hiding (readFile)
 
 data TODO = TODO
 
@@ -12,59 +20,61 @@ todo' msg = error ("TODO: " ++ msg)
  - takes a Db, produces a new Db and some output to print 
  - and a flag telling us if we are done
 -}
-type Command = Db -> (Db, String, Bool)
+type Command = DbFn ()
+
+commands = Commands {
+	show_all_trains  = todo,
+	show_all_routes  = todo,
+
+	show_train       = todo,
+	show_train_car   = todo,
+	show_route       = todo,
+	show_city        = todo,
+	show_reservation = todo,
+
+	unknown_command  = db_error
+}
 
 main :: IO ()
 main = do
+	let db_path = "zug.db"
+
 	putStrLn ">> STARTING APP"
 
-	let filepath = "zug.db"
+	db_exists <- doesFileExist db_path
+
+	when (not db_exists) $ do
+		putStrLn ">> CREATING DATABASE"
+		writeDb db_path db
 
 	putStrLn ">> READING DATABASE"
-	db    <- readDb filepath
+	db    <- readDb db_path
 	putStrLn ">> READ DATABASE"
 
-	input <- getContents -- get user input from stdin
+	input  <- getContents          -- get user input from stdin
+	input' <- return (lines input) -- split input into lines
 
-	(db', _) <- mainLoop db input -- process user input in mainLoop
+	db' <- foldM step db input' -- process user input in mainLoop
 
 	putStrLn ">> WRITING DATABASE"
-	writeDb filepath db' -- process changes in DB
+	writeDb db_path db' -- process changes in DB
 	putStrLn ">> WROTE DATABASE"
 
 	putStrLn ">> DONE"
 
-mainLoop :: Db -> String -> IO (Db, String)
-mainLoop db input = do
-	(db', input', done) <- loopStep db input
+step :: Db -> String -> IO Db
+step db input = do
+	let cmd = parse_command commands input
 
-	if done
-	then
-		return (db', input')
-	else
-		mainLoop db' input'
+	let (_, output, db') = runDbFn db cmd
 
-loopStep :: Db -> String -> IO (Db, String, Bool)
-loopStep db input = do
-	-- execute command
-	let (cmd, input') = parseCommand input
-
-	-- execute command
-	let (db', output, done) = cmd db
-
-	-- write output of command
 	putStrLn output
-
-	return (db', input', done)
+	return db'
 
 readDb :: FilePath -> IO Db
-readDb file = return _TEST_DB
+readDb path = do
+	text <- readFile path
+	return (read text)
 
 writeDb :: FilePath -> Db -> IO ()
-writeDb = todo' "writeDb"
-
-parseCommand :: String -> (Command, String)
-parseCommand str = f (lines str)
-	where
-		f []          = (\db -> (db, "INPUT EMPTY", True), [])
-		f (line:rest) = (\db -> (db, "READ: " ++ line, False), unlines rest)
+writeDb file db = writeFile file (show db)

@@ -3,7 +3,7 @@
 module Parser(
 	Commands(..),
 
-	parse_command
+	parse_command,
 ) where
 
 import Control.Applicative
@@ -42,13 +42,15 @@ dummy_commands = Commands {
 }
 
 -- | Takes a set of callbacks and a string to parse.
--- | Returns either the result of a callback or an error message
-parse_command :: Commands a -> String -> Either String a
-parse_command cmds str = unwrap (runParser (command_parser cmds) str)
+-- | Returns the result of a callback
+parse_command :: Commands a -> String -> a
+parse_command cmds str = unwrap (runParser (command cmds) str)
 	where
-		unwrap (Success a   s') = Right a
-		unwrap (Error   e a s') = Left  e
+		unwrap (Success a   s') = a
+		unwrap (Error   e a s') = (unknown_command cmds) ("Unknown command: '" ++ str ++ "'")
 		unwrap (Commit  c)      = unwrap c 
+
+pc str = runParser (command dummy_commands) str
 
 -- ***** MAIN COMMAND PARSERS ************
 
@@ -66,8 +68,7 @@ command Commands{..} = try [
 	phrase "show traincar"    >> show_train_car   <$> train_id <*> train_car_id,
 	phrase "show route"       >> show_route       <$> route_id,
 	phrase "show city"        >> show_city        <$> city,
-	phrase "show reservation" >> show_reservation <$> reservation_id,
-	unknown_command <$> remaining]
+	phrase "show reservation" >> show_reservation <$> reservation_id]
 
 city :: Parser City
 city = fmap City string
