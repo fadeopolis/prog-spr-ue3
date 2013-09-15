@@ -2,7 +2,7 @@ module Db(
 	-- we don't export the Db constructor,
 	-- _TEST_DB as starting point
 	-- can only be altered by db_add_reservation and db_remove_reservation
-	Db,
+	Db, trains,
 
 	-- need to be public for parser
 	TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..),
@@ -17,6 +17,7 @@ module Db(
 	reservation_id, train, traincar, first_seat, num_seats, reservation_route_id, reservation_route,
 	
 	--reservation_start, reservation_end,
+	reservation_id_gen,
 
 	runDbFn,
 	db_add_reservation, db_remove_reservation,
@@ -89,7 +90,7 @@ data Reservation = Reservation {
 	num_seats            :: Int,           -- number of seats reserved
 	
 	reservation_route_id :: RouteId,       -- the route this reservation is on
-	reservation_route    :: [City]         -- start and end city as head and tail
+	reservation_route    :: [City]         -- start and end city as head and tail -- update: we use all cities contained in this reservation
 	--reservation_start :: City,          -- must be in route
 	--reservation_end   :: City           -- must be in route
 }
@@ -131,6 +132,10 @@ runDbFn db (DbFn state) = (a, output, db')
 	where
 		((a, db'), output) = runWriter $ runStateT state db
 
+evalDbFn ::  Db -> DbFn a -> a
+evalDbFn db (DbFn state) = a
+ where
+  ((a, db'), output) = runWriter $ runStateT state db
 
 db_list_reservations :: DbFn [Reservation]
 db_list_reservations = db_get reservations
@@ -172,11 +177,27 @@ colliding_reservations :: Reservation -> [Reservation] -> [Reservation]
 colliding_reservations r rs = filter (colliding_reservation r) rs
 
 colliding_reservation :: Reservation -> Reservation -> Bool
-colliding_reservation r a = (check_city r (reservation_route a)) && (check_seats r a)
+colliding_reservation r a = check_reservation_seats_possible (num_free_seats_for_car (get_train (train r))) (num_seats a) && 
+						   (check_reservation_car (train r) (traincar r) (train a) (traincar a)) && 
+						   (check_city r (reservation_route a)) && 
+						   (check_seats r a)
+
+get_train :: TrainId -> DbFn (Maybe Train)
+get_train t = do
+	ts <- db_get trains
+	return (find (\t2 -> train_id t2 == t) ts)
+
+
+-- check if it is the same Train and same CarId
+check_reservation_car :: TrainId -> TrainCarId -> TrainId -> TrainCarId -> Bool
+check_reservation_car tid tcid tid1 tcid1 = (tid == tid1) && (tcid == tcid1)
 
 -- check if Reservation contains same Cities
 check_city :: Reservation -> [City] -> Bool
 check_city r r1 = any (uncurry (==)) [(a,b) | a <- reservation_route r, b <- r1]
+
+check_reservation_seats_possible :: Int -> Int -> Bool
+check_reservation_seats_possible max_free_seats num_seats = max_free_seats <= num_seats
 
 --elem (head (reservation_route r)) r1
 
@@ -239,7 +260,9 @@ db_add_reservation' r = do
 	db_trace r
 
 	let collisions = colliding_reservations r all_reservations
-
+	
+	db_trace collisions
+	
 	if notNull collisions
 	then
 		return Nothing
