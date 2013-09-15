@@ -57,10 +57,10 @@ car_id_18 = TrainCarId "car_18"
 car_id_19 = TrainCarId "car_19"
 car_id_20 = TrainCarId "car_20"
 
-num_seats_01 = TrainCarNumSeats 20
-num_seats_02 = TrainCarNumSeats 30
-num_seats_03 = TrainCarNumSeats 40
-num_seats_04 = TrainCarNumSeats 50
+num_seats_01 = 20
+num_seats_02 = 30
+num_seats_03 = 40
+num_seats_04 = 50
 
 --Cities
 c_01 = City "Stadion"

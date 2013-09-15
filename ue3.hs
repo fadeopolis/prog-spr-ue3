@@ -38,8 +38,71 @@ commands = Commands {
 -- und Waggon zwischen je zwei Stationen (wobei sich Minimum und Maximum darauf beziehen, 
 -- dass Reservierungen möglicherweise nur auf Teilen der abgefragten Strecke existieren); 
 
+
+
 -- Mindestanzahl der zwischen zwei Stationen freien und der noch reservierbaren Plätze sowie die maximale Gruppengröße
 -- (= maximale Zahl der Personen pro Reservierung) für einen Zug oder mehrere gegebene Züge (wenn Umsteigen nötig ist). 
+
+-- | Input a 
+{-
+query_4 :: Train -> City -> City -> DbFn (Int, Int)
+query_4 t start stop = do
+	rs  <- db_get reservations
+	rs' <- return (filter (\r -> train_id (train r) == train_id t) rs) -- we only care about reservations for the same train
+
+	if 
+
+-}
+
+reserved_seats_for_car :: TrainCarId -> DbFn [(Int, Int)]
+reserved_seats_for_car id = do
+	rs <- db_reservations_for_traincar id
+
+	return (map (\r -> (first_seat r, num_seats r)) rs)
+
+-- | The number of reserved seats for a traincar
+num_reserved_seats_for_car :: TrainCar -> DbFn Int
+num_reserved_seats_for_car car = do
+	rs <- db_reservations_for_traincar (train_car_id car)
+
+	return (sum (map num_seats rs))
+
+-- | The number of free seats for a traincar
+num_free_seats_for_car :: TrainCar -> DbFn Int
+num_free_seats_for_car car = do
+	all      <- return (train_car_num_seats car)
+	reserved <- num_reserved_seats_for_car car
+
+	return (all - reserved)
+
+-- | The total number of seats in a train
+num_seats_for_train :: Train -> Int
+num_seats_for_train t = sum (map train_car_num_seats (train_cars t))
+
+-- | The number of reserved seats in a train
+num_reserved_seats_for_train :: Train -> DbFn Int
+num_reserved_seats_for_train t = do
+	nums <- mapM num_reserved_seats_for_car (train_cars t)
+
+	return (sum nums)
+
+-- | The number of free seats in a train
+num_free_seats_for_train :: Train -> DbFn Int
+num_free_seats_for_train t = do
+	all      <- return (num_seats_for_train t)
+	reserved <- num_reserved_seats_for_train t
+
+	return (all - reserved)
+
+
+free_seats :: TrainCarId -> [(Int, Int)]
+free_seats = todo
+
+db_reservations_for_traincar :: TrainCarId -> DbFn [Reservation]
+db_reservations_for_traincar t = do
+	rs  <- db_get reservations
+	
+	return (filter (\r -> traincar r == t) rs)
 
 
 main :: IO ()
@@ -55,13 +118,13 @@ main = do
 		writeDb db_path db
 
 	putStrLn ">> READING DATABASE"
-	db    <- readDb db_path
+	db'    <- readDb db_path
 	putStrLn ">> READ DATABASE"
 
-	db' <- mainLoop db
+	db'' <- mainLoop db'
 
 	putStrLn ">> WRITING DATABASE"
-	writeDb db_path db' -- process changes in DB
+	writeDb db_path db'' -- process changes in DB
 	putStrLn ">> WROTE DATABASE"
 
 	putStrLn ">> DONE"
