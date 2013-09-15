@@ -1,8 +1,12 @@
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE RecordWildCards    #-}
+
 module Db(
 	-- we don't export the Db constructor,
 	-- _TEST_DB as starting point
 	-- can only be altered by db_add_reservation and db_remove_reservation
 	Db,
+	reservations, trains,
 
 	-- need to be public for parser
 	TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..),
@@ -28,6 +32,10 @@ module Db(
 	db_add_trains, 
 	db_add_routes,
 
+	reservation_id_gen,
+	db_get,
+	evalDbFn, evalDbFn',
+
 	DbFn,
 ) where
 
@@ -49,7 +57,7 @@ newtype TrainId          = TrainId          String  deriving (Show, Read, Eq)
 newtype FreeSeatQuota    = FreeSeatQuota    Int     deriving (Show, Read, Eq)
 
 newtype TrainCarId       = TrainCarId       String  deriving (Show, Read, Eq)
-newtype TrainCarNumSeats = TrainCarNumSeats Int     deriving (Show, Read, Eq)
+type    TrainCarNumSeats = Int
 
 newtype RouteId          = RouteId          String  deriving (Show, Read, Eq)
 newtype City             = City             String  deriving (Show, Read, Eq)
@@ -64,7 +72,12 @@ data Train = Train {
 	train_cars           :: [TrainCar], -- list of all traincars of this train
 	train_res_free_seats :: FreeSeatQuota -- quota of free seats which are not reservable
 }
-	deriving (Show, Read, Eq)
+	deriving (Read, Eq)
+
+--deriving instance Show Train
+
+instance Show Train where
+	show Train{..} = "Train " ++ show train_id
 
 -- one car in a train
 data TrainCar = TrainCar {
@@ -72,6 +85,8 @@ data TrainCar = TrainCar {
 	train_car_num_seats :: TrainCarNumSeats -- number of seats available in a traincar
 }
 	deriving (Show, Read, Eq)
+
+
 
 -- a route from town A to town B, with stops etc.
 data Route = Route {
@@ -120,6 +135,7 @@ _TEST_DB = Db {
 }
 
 -- computation that may alter the database or print some output
+-- DbFn a ~= Db -> (a, Db, String)
 newtype DbFn a = DbFn { unDbFn :: (StateT Db (Writer String) a) }
 
 db_trace :: Show a => a -> DbFn ()
@@ -128,6 +144,16 @@ db_trace a = trace ("\n>> DEBUG: " ++ show a ++ "\n") (return ())
 -- run db function
 runDbFn :: Db -> DbFn a -> (a, String, Db)
 runDbFn db (DbFn state) = (a, output, db')
+	where
+		((a, db'), output) = runWriter $ runStateT state db
+
+evalDbFn ::  Db -> DbFn a -> a
+evalDbFn db (DbFn state) = a
+	where
+		((a, db'), output) = runWriter $ runStateT state db
+
+evalDbFn' ::  Db -> DbFn a -> Db
+evalDbFn' db (DbFn state) = db'
 	where
 		((a, db'), output) = runWriter $ runStateT state db
 
