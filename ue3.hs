@@ -35,6 +35,12 @@ commands = Commands {
 	unknown_command  = db_error
 }
 
+-- Mindestanzahl der freien und maximale Anzahl der durch Reservierung belegten Plätze pro Zug
+-- und Waggon zwischen je zwei Stationen (wobei sich Minimum und Maximum darauf beziehen, 
+-- dass Reservierungen möglicherweise nur auf Teilen der abgefragten Strecke existieren); 
+
+
+
 main :: IO ()
 main = do
 	let db_path = "zug.db"
@@ -51,10 +57,11 @@ main = do
 	db    <- readDb db_path
 	putStrLn ">> READ DATABASE"
 
-	input  <- getContents          -- get user input from stdin
-	input' <- return (lines input) -- split input into lines
+	input   <- getContents                           -- get user input from stdin
+	input'  <- return (lines input)                  -- split input into lines
+	input'' <- return (map (\a -> seq a a) input')   -- force lines to be read in one go, not lazily
 
-	db' <- foldM step db input' -- process user input in mainLoop
+	db' <- foldM step db input'' -- process user input in mainLoop
 
 	putStrLn ">> WRITING DATABASE"
 	writeDb db_path db' -- process changes in DB
