@@ -1,15 +1,14 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BangPatterns    #-}
 
 import Db
 import Parser
 import Trains
 
 import Data.List
-import System.IO.Strict(readFile)
+import System.IO hiding (readFile)
 import System.Directory
 import Control.Monad
-
-import Prelude hiding (readFile)
 
 data TODO = TODO
 
@@ -39,6 +38,8 @@ commands = Commands {
 -- und Waggon zwischen je zwei Stationen (wobei sich Minimum und Maximum darauf beziehen, 
 -- dass Reservierungen möglicherweise nur auf Teilen der abgefragten Strecke existieren); 
 
+-- Mindestanzahl der zwischen zwei Stationen freien und der noch reservierbaren Plätze sowie die maximale Gruppengröße
+-- (= maximale Zahl der Personen pro Reservierung) für einen Zug oder mehrere gegebene Züge (wenn Umsteigen nötig ist). 
 
 
 main :: IO ()
@@ -57,11 +58,7 @@ main = do
 	db    <- readDb db_path
 	putStrLn ">> READ DATABASE"
 
-	input   <- getContents                           -- get user input from stdin
-	input'  <- return (lines input)                  -- split input into lines
-	input'' <- return (map (\a -> seq a a) input')   -- force lines to be read in one go, not lazily
-
-	db' <- foldM step db input'' -- process user input in mainLoop
+	db' <- mainLoop db
 
 	putStrLn ">> WRITING DATABASE"
 	writeDb db_path db' -- process changes in DB
@@ -69,19 +66,30 @@ main = do
 
 	putStrLn ">> DONE"
 
-step :: Db -> String -> IO Db
-step db input = do
-	let cmd = parse_command commands input
+mainLoop :: Db -> IO Db
+mainLoop db = do
+	eof <- isEOF
 
-	let (_, output, db') = runDbFn db cmd
+	if eof then
+		return db
+	else do
+		input            <- getLine
+		cmd              <- return (parse_command commands input)
+		(_, output, db') <- return (runDbFn db cmd)
 
-	putStrLn output
-	return db'
+		putStrLn output
+		mainLoop db'
 
 readDb :: FilePath -> IO Db
 readDb path = do
-	text <- readFile path
-	return (read text)
+	text  <- readFile path
+	text' <- return (force text) -- make sure file is fully read before we return
+
+	return (read text')
 
 writeDb :: FilePath -> Db -> IO ()
 writeDb file db = writeFile file (show db)
+
+-- | Force evaluation of a lazy value
+force :: a -> a
+force !a = a
