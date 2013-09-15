@@ -3,30 +3,30 @@ module Trains where
 import Db
 
 -- Data
-u1_01 = TrainId ""
-u1_02 = TrainId ""
---u1_03 = TrainId ""
---u1_04 = TrainId ""
+u1_01 = TrainId "u1_01"
+u1_02 = TrainId "u1_02"
+--u1_03 = TrainId "u1_03"
+--u1_04 = TrainId "u1_04"
 
-u2_01 = TrainId ""
-u2_02 = TrainId ""
---u2_03 = TrainId ""
---u2_04 = TrainId ""
+u2_01 = TrainId "u2_01"
+u2_02 = TrainId "u2_02"
+--u2_03 = TrainId "u2_03"
+--u2_04 = TrainId "u2_04"
 
-u3_01 = TrainId ""
-u3_02 = TrainId ""
---u3_03 = TrainId ""
---u3_04 = TrainId ""
+u3_01 = TrainId "u3_01"
+u3_02 = TrainId "u3_02"
+--u3_03 = TrainId "u3_03"
+--u3_04 = TrainId "u3_04"
 
-u4_01 = TrainId ""
-u4_02 = TrainId ""
---u4_03 = TrainId ""
---u4_04 = TrainId ""
+u4_01 = TrainId "u4_01"
+u4_02 = TrainId "u4_02"
+--u4_03 = TrainId "u4_03"
+--u4_04 = TrainId "u4_04"
 
-u6_01 = TrainId ""
-u6_02 = TrainId ""
---u6_03 = TrainId ""
---u6_04 = TrainId ""
+u6_01 = TrainId "u6_01"
+u6_02 = TrainId "u6_02"
+--u6_03 = TrainId "u6_03"
+--u6_04 = TrainId "u6_04"
 
 quota_1 = FreeSeatQuota 5
 quota_2 = FreeSeatQuota 10
@@ -63,18 +63,30 @@ num_seats_03 = TrainCarNumSeats 40
 num_seats_04 = TrainCarNumSeats 50
 
 --Cities
-c_01 = City "TU Wien"
-c_02 = City "Uni Wien"
-c_03 = City "FH Technikum"
-c_04 = City "Boku Wien"
-c_05 = City "WU Wien"
-c_06 = City "Lauder Business School"
-c_07 = City "Akademie der Bildenden Kuenste"
-c_08 = City "Konservatorium"
-c_09 = City "FH bfi"
-c_10 = City "FH Technikum"
-c_11 = City "FH Campus"
-c_12 = City "FH Wien"
+c_01 = City "Stadion"
+c_02 = City "Krieau"
+c_03 = City "Messe-Prater"
+c_04 = City "Praterstern"
+c_05 = City "Taborstrasse"
+c_06 = City "Schottenring"
+c_07 = City "Schottentor"
+c_08 = City "Rathaus"
+c_09 = City "Volkstheater"
+c_10 = City "Museumsquartier"
+c_11 = City "Karlsplatz"
+c_12 = City "Stadtpark"
+c_13 = City "Landstrasse"
+c_14 = City "Schwedenplatz"
+c_15 = City "RossauerLaende"
+c_16 = City "Friedensbruecke"
+c_17 = City "Nestroyplatz"
+c_18 = City "Stephansplatz"
+c_19 = City "Taubstummengasse"
+c_20 = City "SuedtirolerPlatz"
+c_21 = City "Herrengasse"
+c_22 = City "Stubentor"
+c_23 = City "Rochusgasse"
+c_24 = City "KardinalNaglPlatz"
 
 route_id_01 = RouteId "U1"
 route_id_02 = RouteId "U2"
@@ -83,12 +95,11 @@ route_id_04 = RouteId "U4"
 route_id_05 = RouteId "U6"
 
 --Route
---TODO
-route_01 = Route route_id_01 [c_01, c_02, c_03]
-route_02 = Route route_id_02 [c_01, c_02, c_03]
-route_03 = Route route_id_03 [c_01, c_02, c_03]
-route_04 = Route route_id_04 [c_01, c_02, c_03]
-route_05 = Route route_id_05 [c_01, c_02, c_03]
+route_01 = Route route_id_01 [c_04, c_17, c_14, c_18, c_11, c_19, c_20]
+route_02 = Route route_id_02 [c_01, c_02, c_03, c_04, c_05, c_06, c_07, c_08, c_09, c_10, c_11]
+route_03 = Route route_id_03 [c_09, c_21, c_18, c_22, c_13, c_23, c_24]
+route_04 = Route route_id_04 [c_15, c_06, c_14, c_13, c_12, c_11] --Rossauerlaende - Schottentor - Stephansplatz - Stadtpark - Rochusgasse
+route_05 = Route route_id_05 [c_15, c_07, c_18, c_12, c_23]
 
 --TrainCars
 car_01 = TrainCar car_id_01 num_seats_01
