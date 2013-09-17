@@ -5,6 +5,7 @@ module Db(
 	-- we don't export the Db constructor,
 	-- _TEST_DB as starting point
 	-- can only be altered by db_add_reservation and db_remove_reservation
+
 	Db,
 	reservations, trains, routes,
 
@@ -36,6 +37,7 @@ module Db(
 	db_empty, 
 	db_add_trains, 
 	db_add_routes,
+	routes_overlap,
 
 	reservation_id_gen,
 	db_get,
@@ -181,7 +183,6 @@ evalDbFn' db (DbFn state) = db'
 	where
 		((a, db'), output) = runWriter $ runStateT state db
 
-
 db_list_reservations :: DbFn [Reservation]
 db_list_reservations = db_get reservations
 
@@ -222,28 +223,36 @@ colliding_reservations :: Reservation -> [Reservation] -> [Reservation]
 colliding_reservations r rs = filter (colliding_reservation r) rs
 
 colliding_reservation :: Reservation -> Reservation -> Bool
-colliding_reservation r a = (check_city r a) && (check_seats r a)
+colliding_reservation a b =  check_city a b
+--                          && check_reservation_seats_possible (a b
+                          && check_reservation_car (reservation_train a) (reservation_traincar a) (reservation_train b) (reservation_traincar b)
+                          && check_seats a b
+
+get_train :: TrainId -> DbFn (Maybe Train)
+get_train t = do
+	ts <- db_get trains
+	return (find (\t2 -> train_id t2 == t) ts)
+
+
+-- check if it is the same Train and same CarId
+check_reservation_car :: TrainId -> TrainCarId -> TrainId -> TrainCarId -> Bool
+check_reservation_car tid tcid tid1 tcid1 = (tid == tid1) && (tcid == tcid1)
 
 -- check if Reservation contains same Cities
 check_city :: Reservation -> Reservation -> Bool
 check_city a b = intersect (reservation_route a) (reservation_route b) /= []
 
---elem (head (reservation_route r)) r1
+check_reservation_seats_possible :: Int -> Int -> Bool
+check_reservation_seats_possible max_free_seats num_seats = max_free_seats <= num_seats
 
---check_city r null = False
---check_city r r2 = error "checking city"
-
---printCity :: Reservation -> String
---printCity r = print r
-
--- if reservation_first_seat > (first_seat + num_seats) -> true, reservation possible
--- else false 
--- Reservierung1: first_seat 4, num_seats 5 -> 4 - 9 reserved.
--- Reservierung2: first_seat 1, num_seats 5 -> 1 - 5 reserved.
--- check if Reservation contains same seats
 check_seats :: Reservation -> Reservation -> Bool
 check_seats a b = slots_overlap (reservation_slot a) (reservation_slot b)
 --	(((first_seat r) + (num_seats r) - 1) < (first_seat r1) || (first_seat r) > ((first_seat r1) + (num_seats r1) - 1))
+
+
+-- | Checks if two routes overlap
+routes_overlap :: [City] -> [City] -> Bool
+routes_overlap a b = intersect a b /= [] 
 
 -- FOR CREATING DB ------------------------------------------------------
 
@@ -302,7 +311,9 @@ db_add_reservation' r = do
 	db_trace r
 
 	let collisions = colliding_reservations r all_reservations
-
+	
+	db_trace collisions
+	
 	if notNull collisions
 	then
 		return Nothing
