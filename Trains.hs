@@ -28,10 +28,10 @@ u6_02 = TrainId "u6_02"
 --u6_03 = TrainId "u6_03"
 --u6_04 = TrainId "u6_04"
 
-quota_1 = FreeSeatQuota 5
-quota_2 = FreeSeatQuota 10
-quota_3 = FreeSeatQuota 15
-quota_4 = FreeSeatQuota 20
+quota_1 = 5
+quota_2 = 10
+quota_3 = 15
+quota_4 = 20
 
 car_id_01 = TrainCarId "car_01"
 car_id_02 = TrainCarId "car_02"

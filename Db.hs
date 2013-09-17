@@ -6,19 +6,24 @@ module Db(
 	-- _TEST_DB as starting point
 	-- can only be altered by db_add_reservation and db_remove_reservation
 	Db,
-	reservations, trains,
+	reservations, trains, routes,
 
 	-- need to be public for parser
-	TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..),
+	TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..), Seat,
 
 	Train(..), TrainCar(..), Route(..), Reservation,
+	train_num_seats,
+
+	Slot(..),
+	slot_num_seats, slot_seats,
+	slots_overlap, slot_contains_seat, slot_contains_slot,
 
 	--TODO should we make these puplic?
 	FreeSeatQuota(..), TrainCarNumSeats(..), City(..),
 
 	-- we don't export the Reservation constructor,
 	-- can only be safely created by db_add_reservation
-	reservation_id, train, traincar, first_seat, num_seats, reservation_route_id, reservation_route,
+	reservation_id, reservation_train, reservation_traincar, reservation_slot, reservation_route,
 	
 	--reservation_start, reservation_end,
 
@@ -39,6 +44,7 @@ module Db(
 	DbFn,
 ) where
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Writer
 import Control.Monad.State
@@ -54,13 +60,14 @@ todo' msg = error ("TODO: " ++ msg)
 
 -- database id types
 newtype TrainId          = TrainId          String  deriving (Show, Read, Eq)
-newtype FreeSeatQuota    = FreeSeatQuota    Int     deriving (Show, Read, Eq)
+type    FreeSeatQuota    = Int
+type    Seat             = Int
 
 newtype TrainCarId       = TrainCarId       String  deriving (Show, Read, Eq)
 type    TrainCarNumSeats = Int
 
 newtype RouteId          = RouteId          String  deriving (Show, Read, Eq)
-newtype City             = City             String  deriving (Show, Read, Eq)
+newtype City             = City             String  deriving (Show, Read, Eq, Ord)
 
 newtype ReservationId    = ReservationId    Int     deriving (Show, Read, Eq)
 
@@ -74,10 +81,9 @@ data Train = Train {
 }
 	deriving (Read, Eq)
 
---deriving instance Show Train
+deriving instance Show Train
 
-instance Show Train where
-	show Train{..} = "Train " ++ show train_id
+train_num_seats Train{..} = foldl (+) 0 (map train_car_num_seats train_cars)
 
 -- one car in a train
 data TrainCar = TrainCar {
@@ -98,17 +104,35 @@ data Route = Route {
 data Reservation = Reservation {
 	reservation_id       :: ReservationId, -- must be unique
 
-	train                :: TrainId,         -- train passengers ride in
-	traincar             :: TrainCarId,      -- train car passengers ride in
-	first_seat           :: Int,           -- seat in train car where reservation starts
-	num_seats            :: Int,           -- number of seats reserved
-	
-	reservation_route_id :: RouteId,       -- the route this reservation is on
-	reservation_route    :: [City]         -- start and end city as head and tail
-	--reservation_start :: City,          -- must be in route
-	--reservation_end   :: City           -- must be in route
+	reservation_train    :: TrainId,       -- train passengers ride in
+	reservation_traincar :: TrainCarId,    -- train car passengers ride in
+	reservation_slot     :: Slot,          -- the seats reserved in this reservation
+
+	reservation_route    :: [City]         -- cities on one route
 }
 	deriving (Show, Read, Eq)
+
+
+-- | A number of seats in a train car
+data Slot = Slot {
+	slot_first_seat :: Int,
+	slot_last_seat  :: Int
+}
+	deriving (Show, Read, Eq, Ord)
+
+slot_num_seats Slot{..} = slot_last_seat - slot_first_seat + 1
+
+slot_seats Slot{..} = [slot_first_seat .. slot_last_seat]
+
+-- | Check if slot contains a given seat
+slot_contains_seat seat Slot{..} = slot_first_seat <= seat && seat <= slot_last_seat
+
+-- | Check if a slot is fully contained in another slot
+slot_contains_slot big small = slot_first_seat big <= slot_first_seat small && slot_last_seat small <= slot_last_seat big
+
+-- | Checks if two Slots have any seats in common
+slots_overlap a b = intersect (slot_seats a) (slot_seats b) /= []
+
 
 {- Holds all trains, reservations, routes, etc. 
 -- the state of the app so to say.
@@ -164,11 +188,11 @@ db_list_reservations = db_get reservations
 -- add reservation to db
 -- returns (Just Reservation) if reservation was added
 -- returns Nothing if reservation is invalid
-db_add_reservation :: TrainId -> TrainCarId -> Int -> Int -> RouteId -> [City] -> DbFn (Maybe Reservation)
-db_add_reservation train traincar first_seat num_seats route_id cities = do
+db_add_reservation :: TrainId -> TrainCarId -> Slot -> [City] -> DbFn (Maybe Reservation)
+db_add_reservation train traincar slot cities = do
 	id <- new_reservation_id
 
-	db_add_reservation' (Reservation id train traincar first_seat num_seats route_id cities)
+	db_add_reservation' (Reservation id train traincar slot cities)
 
 -- remove all reservations with given id
 db_remove_reservation :: ReservationId -> DbFn ()
@@ -198,11 +222,11 @@ colliding_reservations :: Reservation -> [Reservation] -> [Reservation]
 colliding_reservations r rs = filter (colliding_reservation r) rs
 
 colliding_reservation :: Reservation -> Reservation -> Bool
-colliding_reservation r a = (check_city r (reservation_route a)) && (check_seats r a)
+colliding_reservation r a = (check_city r a) && (check_seats r a)
 
 -- check if Reservation contains same Cities
-check_city :: Reservation -> [City] -> Bool
-check_city r r1 = any (uncurry (==)) [(a,b) | a <- reservation_route r, b <- r1]
+check_city :: Reservation -> Reservation -> Bool
+check_city a b = intersect (reservation_route a) (reservation_route b) /= []
 
 --elem (head (reservation_route r)) r1
 
@@ -218,8 +242,8 @@ check_city r r1 = any (uncurry (==)) [(a,b) | a <- reservation_route r, b <- r1]
 -- Reservierung2: first_seat 1, num_seats 5 -> 1 - 5 reserved.
 -- check if Reservation contains same seats
 check_seats :: Reservation -> Reservation -> Bool
-check_seats r r1 =
-	(((first_seat r) + (num_seats r) - 1) < (first_seat r1) || (first_seat r) > ((first_seat r1) + (num_seats r1) - 1))
+check_seats a b = slots_overlap (reservation_slot a) (reservation_slot b)
+--	(((first_seat r) + (num_seats r) - 1) < (first_seat r1) || (first_seat r) > ((first_seat r1) + (num_seats r1) - 1))
 
 -- FOR CREATING DB ------------------------------------------------------
 
@@ -255,6 +279,19 @@ instance Monad DbFn where
 		a <- unDbFn dbfn
 		b <- unDbFn (f a)
 		return b
+
+instance Applicative DbFn where
+	pure = return
+
+	mf <*> ma = do
+		f <- mf
+		a <- ma
+		return (f a)
+
+instance Functor DbFn where
+	fmap f ma = do
+		a <- ma
+		return (f a)
 
 -- add reservation if it has no collisions
 db_add_reservation' :: Reservation -> DbFn (Maybe Reservation)
