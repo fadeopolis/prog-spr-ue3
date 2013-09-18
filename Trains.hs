@@ -143,8 +143,7 @@ t09 = Train u6_01 route_05 [car_17, car_18] quota_2
 t10 = Train u6_02 route_05 [car_19, car_20] quota_3
 
 -- The actual database
-db = third $ runDbFn db_empty $ do
-	db_add_trains [t01, t02, t03, t04, t05, t06, t07, t08, t09, t10]
-	db_add_routes [route_01, route_02, route_03, route_04, route_05]
+db = db_add_trains [t01, t02, t03, t04, t05, t06, t07, t08, t09, t10]
+   . db_add_routes [route_01, route_02, route_03, route_04, route_05]
+   $ empty_db
 
-third (_, _, c) = c

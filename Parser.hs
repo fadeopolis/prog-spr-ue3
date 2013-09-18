@@ -12,16 +12,23 @@ import Data.List
 
 import Db(City(..), TrainId(..), TrainCarId(..), RouteId(..), ReservationId(..))
 
+import Prelude hiding(read)
+
 -- | a collection of callbacks
 data Commands a = Commands {
 	show_all_trains  :: a,
 	show_all_routes  :: a,
 
-	show_train       :: TrainId               -> a,
-	show_train_car   :: TrainId -> TrainCarId -> a,
-	show_route       :: RouteId               -> a,
-	show_city        :: City                  -> a,
-	show_reservation :: ReservationId         -> a,
+	show_train       :: TrainId                -> a,
+	show_traincar    :: TrainCarId             -> a,
+	show_route       :: RouteId                -> a,
+	show_city        :: City                   -> a,
+	show_reservation :: ReservationId          -> a,
+
+	-- queries from the assignment
+	cmd_query2 :: City -> City                 -> a,
+	cmd_query3 :: TrainId -> TrainCarId -> Int -> a,
+	cmd_query4 :: [(TrainId, City, City)]      -> a,
 
 	-- called when the parser didn't know command you gave it
 	unknown_command  :: String                -> a
@@ -33,10 +40,14 @@ dummy_commands = Commands {
 	show_all_routes  = "All routes",
 
 	show_train       = \train           -> "CHOO CHOO   " ++ show train,
-	show_train_car   = \train train_car -> "TRAIN CAR   " ++ show train_car,
+	show_traincar    = \train_car       -> "TRAIN CAR   " ++ show train_car,
 	show_route       = \route           -> "ROUTE       " ++ show route,
 	show_city        = \city            -> "CITY        " ++ show city,
 	show_reservation = \reservation     -> "RESERVATION " ++ show reservation,
+
+	cmd_query2       = \start stop      -> "QUERY 2 " ++ show start ++ " " ++ show stop,
+	cmd_query3       = \train car seat  -> "QUERY 3 " ++ show train ++ " " ++ show car ++ " " ++ show seat,
+	cmd_query4       = \trains          -> "QUERY 4 " ++ show trains,
 
 	unknown_command  = \cmd -> "Unknown command: '" ++ cmd ++ "'"
 }
@@ -47,7 +58,7 @@ parse_command :: Commands a -> String -> a
 parse_command cmds str = unwrap (runParser (command cmds) str)
 	where
 		unwrap (Success a   s') = a
-		unwrap (Error   e a s') = (unknown_command cmds) ("Unknown command: '" ++ str ++ "'")
+		unwrap (Error   e a s') = (unknown_command cmds) str
 		unwrap (Commit  c)      = unwrap c 
 
 pc str = runParser (command dummy_commands) str
@@ -64,11 +75,15 @@ command_parser cmds = do
 command Commands{..} = try [
 	phrase "show all trains"  >> return show_all_trains,
 	phrase "show all routes"  >> return show_all_routes,
+	phrase "show traincar"    >> show_traincar    <$> traincar_id,
 	phrase "show train"       >> show_train       <$> train_id,
-	phrase "show traincar"    >> show_train_car   <$> train_id <*> train_car_id,
 	phrase "show route"       >> show_route       <$> route_id,
 	phrase "show city"        >> show_city        <$> city,
-	phrase "show reservation" >> show_reservation <$> reservation_id]
+	phrase "show reservation" >> show_reservation <$> reservation_id,
+
+	phrase "query2" >> cmd_query2 <$> city <*> city,
+	phrase "query3" >> cmd_query3 <$> train_id <*> traincar_id <*> number,
+	phrase "query4" >> cmd_query4 <$> many (phrase "train" >> train_start_stop)]
 
 city :: Parser City
 city = fmap City string
@@ -76,14 +91,20 @@ city = fmap City string
 train_id :: Parser TrainId
 train_id = fmap TrainId string 
 
-train_car_id :: Parser TrainCarId
-train_car_id = fmap TrainCarId string
+traincar_id :: Parser TrainCarId
+traincar_id = fmap TrainCarId string
 
 route_id :: Parser RouteId
 route_id = fmap RouteId string
 
 reservation_id :: Parser ReservationId
 reservation_id = fmap ReservationId number
+
+train_start_stop = do
+	train <- train_id 
+	start <- city
+	stop  <- city
+	return (train, start, stop)
 
 -- ***** MAIN HELPER PARSERS ************
 
@@ -99,7 +120,7 @@ number = do
 	d <- digit
 	commit " a number " $ do
 		ds <- many digit
-		return (read (d:ds))
+		return 5-- (read (d:ds))
 
 -- | Parser that parses a non empty string that doesn't contain whitespace
 string :: Parser String
@@ -137,7 +158,10 @@ spaces = many space >> return ()
 
 -- | Parser that skips one whitespace char
 space :: Parser ()
-space = sat any_char isSpace "whitespace" >> return ()
+space = Parser f
+	where
+		f (c:cs) | isSpace c = Success ()                            cs
+		f _                  = Error   "whitespace" "something else" []
 
 -- | Parser that consumes all remaining input
 remaining :: Parser String
@@ -152,12 +176,13 @@ eof = Parser f
 
 -- ***** CORE PARSERS ************
 
--- | Parses a single char, fails if input is empty
+-- | Parses a single non-whitespace char, fails if input is empty
 any_char :: Parser Char
 any_char = Parser f
 	where
-		f (c:cs) = Success c                            cs
-		f []     = Error   "a character" "end of input" []
+		f (c:cs) | isSpace c = Error   "a character" "whitespace"   cs
+		         | otherwise = Success c                            cs
+		f []                 = Error   "a character" "end of input" []
 
 -- | Parser that checks result of another parser
 sat :: Show a => Parser a -> (a -> Bool) -> String -> Parser a
